@@ -1,0 +1,22 @@
+{
+  "name": "esp32-picture-server",
+  "version": "1.0.0",
+  "description": "NodeJS Server to receive pictures taken from a ESP32 CAM",
+  "author": {
+    "name": "Mikel Calvo",
+    "email": "contact@mikelcalvo.net",
+    "url": "https://mikelcalvo.net"
+  },
+  "private": true,
+  "dependencies": {
+    "express": "4.18.2",
+    "express-fileupload": "1.4.0"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=16.20.0"
+  }
+}
