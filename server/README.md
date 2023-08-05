@@ -24,7 +24,3 @@ You can configure the server by modifying the following options in the `index.js
 - `fileSize`: The maximum file size allowed in bytes. Default is 10,000,000 (10MB).
 - `abortOnLimit`: Whether to abort the upload if the file size exceeds the limit. Default is true.
 - `uploadFolder`: The folder where uploaded files will be saved. Default is `./images`.
-
-## License
-
-This project is licensed under the WTFPL License - see the [LICENSE.md](LICENSE.md) file for details.

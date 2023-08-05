@@ -13,7 +13,7 @@ This project allows you to capture images using the ESP32-CAM and upload them to
 
 1. Install the ESP32 board support for Arduino IDE by following the instructions in the [ESP32 Arduino Core repository](https://github.com/espressif/arduino-esp32).
 
-2. Open the `esp32-cam-image-uploader.ino` file in Arduino IDE.
+2. Open the `ESP32CAM.ino` file in Arduino IDE.
 
 3. Uncomment the camera model you are using by selecting the appropriate `#define` statement. For example, if you are using the AI-Thinker model, uncomment the line `#define CAMERA_MODEL_AI_THINKER`.
 
@@ -39,8 +39,8 @@ This project allows you to capture images using the ESP32-CAM and upload them to
    - `serverPort`: The port number on which your server is running.
    - `serverPath`: The path on the server where the image will be uploaded.
    - `fileName`: The name to be given to the uploaded image (server will add a timestamp at the start).
-     <br><br>
 
+<br>
 7. Upload the code to your ESP32-CAM board.
 
 8. Open the Serial Monitor in Arduino IDE to view the debug output.
