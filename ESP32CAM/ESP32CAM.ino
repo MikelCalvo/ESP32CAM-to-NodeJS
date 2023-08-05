@@ -80,7 +80,7 @@ void setup() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.frame_size = FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_JPEG; // for streaming
+  config.pixel_format = PIXFORMAT_JPEG;
   //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
@@ -90,14 +90,14 @@ void setup() {
   // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
   //                      for larger pre-allocated frame buffer.
   if(config.pixel_format == PIXFORMAT_JPEG){
-    if(psramFound()){
-      config.jpeg_quality = 10;
-      config.fb_count = 2;
-      config.grab_mode = CAMERA_GRAB_LATEST;
-    } else {
-      // Limit the frame size when PSRAM is not available
-      config.frame_size = FRAMESIZE_SVGA;
-      config.fb_location = CAMERA_FB_IN_DRAM;
+  if(psramFound()){
+    config.jpeg_quality = 10;
+    config.fb_count = 2;
+    config.grab_mode = CAMERA_GRAB_LATEST;
+  } else {
+    // Limit the frame size when PSRAM is not available
+    config.frame_size = FRAMESIZE_SVGA;
+    config.fb_location = CAMERA_FB_IN_DRAM;
     }
   } else {
     // Best option for face detection/recognition
@@ -121,12 +121,23 @@ void setup() {
 
   sensor_t * s = esp_camera_sensor_get();
 
+  // ov2640
+  if (s->id.PID == OV2640_PID) {
+    s->set_gain_ctrl(s, 1); // auto gain on
+    s->set_exposure_ctrl(s, 1); // auto exposure on
+    s->set_awb_gain(s, 1); // Auto White Balance enable (0 or 1)
+    s->set_saturation(s, -1); // lower the saturation
+  }
+
   // initial sensors are flipped vertically and colors are a bit saturated
   if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1); // flip it back
     s->set_brightness(s, 1); // up the brightness just a bit
     s->set_saturation(s, -2); // lower the saturation
   }
+
+  // camera framesize
+  s->set_framesize(s, FRAMESIZE_UXGA); 
 
   #if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
     s->set_vflip(s, 1);
@@ -188,6 +199,8 @@ String takePicture() {
     uint32_t imageLen = fb->len;
     uint32_t totalLen = imageLen + head.length() + tail.length();
   
+    Serial.println("Sending Image...");
+
     client.println("POST " + serverPath + " HTTP/1.1");
     client.println("Host: " + serverName);
     client.println("Content-Length: " + String(totalLen));
@@ -229,7 +242,7 @@ String takePicture() {
     Serial.println();
     client.stop();
     Serial.println(responseBody);
-  }
+  } else {
   else {
     responseBody = "Connection to " + serverName +  " failed.";
     Serial.println(responseBody);
