@@ -38,6 +38,19 @@
 const char* ssid = "**********";
 const char* password = "**********";
 
+// ===========================
+// Enter your server information
+// ===========================
+String serverName = "192.168.x.xx";
+const int serverPort = 80;
+String serverPath = "/upload";
+String fileName = "ESP32-001";
+
+const int pictureInterval = 60000;    // time between each image (in milliseconds)
+unsigned long latestPicture = 0;   // last time image was sent (in milliseconds)
+
+WiFiClient client;
+
 void startCameraServer();
 void setupLedFlash(int pin);
 
@@ -89,15 +102,15 @@ void setup() {
   } else {
     // Best option for face detection/recognition
     config.frame_size = FRAMESIZE_240X240;
-#if CONFIG_IDF_TARGET_ESP32S3
-    config.fb_count = 2;
-#endif
+    #if CONFIG_IDF_TARGET_ESP32S3
+      config.fb_count = 2;
+    #endif
   }
 
-#if defined(CAMERA_MODEL_ESP_EYE)
-  pinMode(13, INPUT_PULLUP);
-  pinMode(14, INPUT_PULLUP);
-#endif
+  #if defined(CAMERA_MODEL_ESP_EYE)
+    pinMode(13, INPUT_PULLUP);
+    pinMode(14, INPUT_PULLUP);
+  #endif
 
   // camera init
   esp_err_t err = esp_camera_init(&config);
@@ -107,30 +120,27 @@ void setup() {
   }
 
   sensor_t * s = esp_camera_sensor_get();
+
   // initial sensors are flipped vertically and colors are a bit saturated
   if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1); // flip it back
     s->set_brightness(s, 1); // up the brightness just a bit
     s->set_saturation(s, -2); // lower the saturation
   }
-  // drop down frame size for higher initial frame rate
-  if(config.pixel_format == PIXFORMAT_JPEG){
-    s->set_framesize(s, FRAMESIZE_QVGA);
-  }
 
-#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-  s->set_vflip(s, 1);
-  s->set_hmirror(s, 1);
-#endif
+  #if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
+    s->set_vflip(s, 1);
+    s->set_hmirror(s, 1);
+  #endif
 
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
-  s->set_vflip(s, 1);
-#endif
+  #if defined(CAMERA_MODEL_ESP32S3_EYE)
+    s->set_vflip(s, 1);
+  #endif
 
-// Setup LED FLash if LED pin is defined in camera_pins.h
-#if defined(LED_GPIO_NUM)
-  setupLedFlash(LED_GPIO_NUM);
-#endif
+  // Setup LED FLash if LED pin is defined in camera_pins.h
+  #if defined(LED_GPIO_NUM)
+    setupLedFlash(LED_GPIO_NUM);
+  #endif
 
   WiFi.begin(ssid, password);
   WiFi.setSleep(false);
@@ -142,14 +152,87 @@ void setup() {
   Serial.println("");
   Serial.println("WiFi connected");
 
-  startCameraServer();
+  Serial.print("ESP32-CAM IP Address: ");
+  Serial.println(WiFi.localIP());
 
-  Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("' to connect");
+  takePicture();
 }
 
 void loop() {
-  // Do nothing. Everything is done in another task by the web server
-  delay(10000);
+  unsigned long currentMilliseconds = millis();
+  if (currentMilliseconds - latestPicture >= pictureInterval) {
+    takePicture();
+    latestPicture = currentMilliseconds;
+  }
+}
+
+String takePicture() {
+  String responseHeaders;
+  String responseBody;
+
+  camera_fb_t * fb = esp_camera_fb_get();
+  if(!fb) {
+    Serial.println("Camera capture failed");
+    delay(1000);
+    ESP.restart();
+  }
+  
+  Serial.println("Connecting to server: " + serverName);
+
+  if (client.connect(serverName.c_str(), serverPort)) {
+    Serial.println("Connection successful!");    
+    String boundary = "--MK--";
+    String head = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"image\"; filename=\"" + fileName + ".jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
+    String tail = "\r\n--" + boundary + "--\r\n";
+
+    uint32_t imageLen = fb->len;
+    uint32_t totalLen = imageLen + head.length() + tail.length();
+  
+    client.println("POST " + serverPath + " HTTP/1.1");
+    client.println("Host: " + serverName);
+    client.println("Content-Length: " + String(totalLen));
+    client.println("Content-Type: multipart/form-data; boundary=" + boundary);
+    client.println();
+    client.print(head);
+  
+    uint8_t *fbBuf = fb->buf;
+    size_t fbLen = fb->len;
+    size_t bufferSize = 1024;
+    for (size_t n = 0; n < fbLen; n += bufferSize) {
+      size_t remaining = fbLen - n;
+      size_t chunkSize = remaining < bufferSize ? remaining : bufferSize;
+      client.write(fbBuf + n, chunkSize);
+    }   
+    client.print(tail);
+    
+    esp_camera_fb_return(fb);
+    
+    int timoutTimer = 10000;
+    long startTimer = millis();
+    boolean state = false;
+    
+    while ((startTimer + timoutTimer) > millis()) {
+      Serial.print(".");
+      delay(100);      
+      while (client.available()) {
+        char c = client.read();
+        if (c == '\n') {
+          if (responseHeaders.length() == 0) { state = true; }
+          responseHeaders = "";
+        }
+        else if (c != '\r') { responseHeaders += String(c); }
+        if (state == true) { responseBody += String(c); }
+        startTimer = millis();
+      }
+      if (responseBody.length() > 0) { break; }
+    }
+    Serial.println();
+    client.stop();
+    Serial.println(responseBody);
+  }
+  else {
+    responseBody = "Connection to " + serverName +  " failed.";
+    Serial.println(responseBody);
+  }
+  return responseBody;
 }
